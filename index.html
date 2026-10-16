@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>孕期剧情 RP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="btn-timelines" class="icon-btn" title="时间线">☰</button>
+      <h1 id="timeline-name">未选择时间线</h1>
+      <button id="btn-metrics" class="icon-btn" title="孕期状态">♡</button>
+      <button id="btn-settings" class="icon-btn" title="设置">⚙</button>
+    </header>
+    <main id="chat" class="chat"></main>
+    <footer class="composer">
+      <textarea id="input" rows="1" placeholder="输入消息，或直接发送让 AI 继续…"></textarea>
+      <button id="btn-send" class="primary">发送</button>
+    </footer>
+  </div>
+
+  <div id="backdrop" class="backdrop hidden"></div>
+
+  <aside id="settings-panel" class="drawer right hidden">
+    <div class="drawer-head"><h2>设置</h2><button class="close" data-close>✕</button></div>
+    <div class="drawer-body">
+      <section>
+        <h3>API</h3>
+        <label>Base URL<input id="api-url" placeholder="https://openrouter.ai/api/v1" /></label>
+        <label>API Key<input id="api-key" type="password" placeholder="sk-…" /></label>
+        <div class="row">
+          <button id="btn-fetch-models">获取模型</button>
+          <select id="model-select"><option value="">（先获取模型）</option></select>
+        </div>
+      </section>
+      <section>
+        <h3>世界观（共享）</h3>
+        <textarea id="world-text" rows="4"></textarea>
+      </section>
+      <section>
+        <h3>角色人设</h3>
+        <div class="avatar-row"><img id="char-avatar-preview" alt="" /><input id="char-avatar" type="file" accept="image/*" /><button id="char-avatar-clear">清除</button></div>
+        <label>基本信息（含角色名）<textarea id="char-basic" rows="3"></textarea></label>
+        <label>性格<textarea id="char-personality" rows="3"></textarea></label>
+        <label>开场白<textarea id="char-opening" rows="4"></textarea></label>
+      </section>
+      <section>
+        <h3>用户人设</h3>
+        <div class="avatar-row"><img id="user-avatar-preview" alt="" /><input id="user-avatar" type="file" accept="image/*" /><button id="user-avatar-clear">清除</button></div>
+        <label>基本信息<textarea id="user-basic" rows="3"></textarea></label>
+        <label>性格<textarea id="user-personality" rows="3"></textarea></label>
+      </section>
+      <section class="row">
+        <button id="btn-export">导出 JSON</button>
+        <button id="btn-import">导入 JSON</button>
+        <input id="import-file" type="file" accept="application/json" class="hidden" />
+      </section>
+      <button id="btn-save-settings" class="primary full">保存设置</button>
+    </div>
+  </aside>
+
+  <aside id="metrics-panel" class="drawer right hidden">
+    <div class="drawer-head"><h2>孕期状态</h2><button class="close" data-close>✕</button></div>
+    <div class="drawer-body" id="metrics-body"></div>
+  </aside>
+
+  <aside id="timelines-panel" class="drawer left hidden">
+    <div class="drawer-head"><h2>时间线</h2><button class="close" data-close>✕</button></div>
+    <div class="drawer-body">
+      <button id="btn-new-chat" class="primary full">＋ 开启新对话</button>
+      <ul id="timeline-list"></ul>
+    </div>
+  </aside>
+
+  <div id="new-chat-dialog" class="modal hidden">
+    <div class="modal-box">
+      <h2 id="new-chat-title">开启新对话</h2>
+      <label>时间线名称<input id="nc-name" placeholder="（可留空自动命名）" /></label>
+      <label>初始孕周<input id="nc-weeks" type="number" min="1" placeholder="如 32" /></label>
+      <div class="row">
+        <button id="nc-cancel">取消</button>
+        <button id="nc-confirm" class="primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

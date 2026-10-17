@@ -7,6 +7,7 @@ import { applyToolCall } from "./tools.js";
 let state = loadState();
 let pendingCharAvatar = null;
 let pendingUserAvatar = null;
+let editingId = null;
 
 const $ = (sel) => document.querySelector(sel);
 const activeTimeline = () => state.timelines.find((t) => t.id === state.activeTimelineId) ?? null;
@@ -149,6 +150,7 @@ function onImportFile(e) {
   reader.onload = () => {
     try {
       state = deserialize(reader.result);
+      editingId = null;
       persist();
       fillSettingsForm();
       render();
@@ -195,7 +197,9 @@ function renderMessage(m, isLastUser, isLastAssistant) {
   avatar.src = m.role === "user" ? (state.user.avatar ?? "") : (state.character.avatar ?? "");
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  if (m.role === "user") {
+  if (m.id === editingId) {
+    bubble.appendChild(renderEditor(m));
+  } else if (m.role === "user") {
     bubble.textContent = m.text;
   } else {
     const v = m.versions[m.activeIndex];
@@ -209,8 +213,39 @@ function renderMessage(m, isLastUser, isLastAssistant) {
     }
   }
   const editable = m.role === "user" ? isLastUser : isLastAssistant;
-  wrap.append(avatar, bubble, moreButton(m, editable));
+  if (m.id === editingId) wrap.append(avatar, bubble);
+  else wrap.append(avatar, bubble, moreButton(m, editable));
   return wrap;
+}
+
+function renderEditor(m) {
+  const box = document.createElement("div");
+  box.className = "editor";
+  const ta = document.createElement("textarea");
+  ta.value = m.role === "user" ? m.text : (m.versions[m.activeIndex]?.text ?? "");
+  const row = document.createElement("div");
+  row.className = "editor-actions";
+  const save = document.createElement("button");
+  save.className = "save";
+  save.textContent = "保存";
+  save.onclick = () => {
+    const val = ta.value;
+    if (m.role === "user") {
+      if (val !== m.text) editUserMessage(m, val);
+    } else {
+      const cur = m.versions[m.activeIndex]?.text ?? "";
+      if (val !== cur) addVersionToMessage(m, val, "edited");
+    }
+    editingId = null;
+    persist();
+    render();
+  };
+  const cancel = document.createElement("button");
+  cancel.textContent = "取消";
+  cancel.onclick = () => { editingId = null; render(); };
+  row.append(save, cancel);
+  box.append(ta, row);
+  return box;
 }
 
 function versionControls(m) {
@@ -286,18 +321,14 @@ function switchTab(name) {
 }
 
 function editMessage(m) {
-  if (m.role === "user") {
-    const val = prompt("修改这条消息（直接覆盖）：", m.text);
-    if (val == null || val === m.text) return;
-    editUserMessage(m, val);
-  } else {
-    const cur = m.versions[m.activeIndex];
-    const val = prompt("编辑这条 AI 回复（保存后作为新版本）：", cur?.text ?? "");
-    if (val == null || val === (cur?.text ?? "")) return;
-    addVersionToMessage(m, val, "edited");
-  }
-  persist();
+  editingId = m.id;
   render();
+  const ta = document.querySelector(".editor textarea");
+  if (ta) {
+    ta.focus();
+    const len = ta.value.length;
+    ta.setSelectionRange(len, len);
+  }
 }
 
 function deleteMessage(m) {

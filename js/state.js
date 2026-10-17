@@ -87,6 +87,11 @@ export function editUserMessage(message, text) {
   message.text = text;
 }
 
+export function removeMessage(timeline, messageId) {
+  timeline.messages = timeline.messages.filter((m) => m.id !== messageId);
+  return timeline;
+}
+
 export function stageFromWeeks(weeks) {
   if (weeks == null || Number.isNaN(weeks)) return null;
   if (weeks <= 12) return "孕早期";

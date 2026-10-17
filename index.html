@@ -25,8 +25,15 @@
 
   <aside id="settings-panel" class="drawer right hidden">
     <div class="drawer-head"><h2>设置</h2><button class="close" data-close>✕</button></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="api">API</button>
+      <button class="tab" data-tab="character">角色人设</button>
+      <button class="tab" data-tab="user">用户人设</button>
+      <button class="tab" data-tab="world">世界观</button>
+      <button class="tab" data-tab="data">数据</button>
+    </nav>
     <div class="drawer-body">
-      <section>
+      <section id="pane-api" class="tab-pane">
         <h3>API</h3>
         <label>Base URL<input id="api-url" placeholder="https://openrouter.ai/api/v1" /></label>
         <label>API Key<input id="api-key" type="password" placeholder="sk-…" /></label>
@@ -35,28 +42,33 @@
           <select id="model-select"><option value="">（先获取模型）</option></select>
         </div>
       </section>
-      <section>
-        <h3>世界观（共享）</h3>
-        <textarea id="world-text" rows="4"></textarea>
-      </section>
-      <section>
+      <section id="pane-character" class="tab-pane hidden">
         <h3>角色人设</h3>
         <div class="avatar-row"><img id="char-avatar-preview" alt="" /><input id="char-avatar" type="file" accept="image/*" /><button id="char-avatar-clear">清除</button></div>
         <label>基本信息（含角色名）<textarea id="char-basic" rows="3"></textarea></label>
         <label>性格<textarea id="char-personality" rows="3"></textarea></label>
         <label>开场白<textarea id="char-opening" rows="4"></textarea></label>
       </section>
-      <section>
+      <section id="pane-user" class="tab-pane hidden">
         <h3>用户人设</h3>
         <div class="avatar-row"><img id="user-avatar-preview" alt="" /><input id="user-avatar" type="file" accept="image/*" /><button id="user-avatar-clear">清除</button></div>
         <label>基本信息<textarea id="user-basic" rows="3"></textarea></label>
         <label>性格<textarea id="user-personality" rows="3"></textarea></label>
       </section>
-      <section class="row">
-        <button id="btn-export">导出 JSON</button>
-        <button id="btn-import">导入 JSON</button>
-        <input id="import-file" type="file" accept="application/json" class="hidden" />
+      <section id="pane-world" class="tab-pane hidden">
+        <h3>世界观（共享）</h3>
+        <textarea id="world-text" rows="6"></textarea>
       </section>
+      <section id="pane-data" class="tab-pane hidden">
+        <h3>数据</h3>
+        <div class="row">
+          <button id="btn-export">导出 JSON</button>
+          <button id="btn-import">导入 JSON</button>
+          <input id="import-file" type="file" accept="application/json" class="hidden" />
+        </div>
+      </section>
+    </div>
+    <div class="drawer-foot">
       <button id="btn-save-settings" class="primary full">保存设置</button>
     </div>
   </aside>

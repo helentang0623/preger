@@ -1,4 +1,4 @@
-import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks } from "./state.js";
+import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks, removeMessage } from "./state.js";
 import { loadState, saveState, serialize, deserialize } from "./store.js";
 import { buildMessages, CONTINUE_INSTRUCTION } from "./prompt.js";
 import { fetchModels, callChat } from "./api.js";
@@ -182,7 +182,6 @@ function renderMessage(m, isLatest) {
   bubble.className = "bubble";
   if (m.role === "user") {
     bubble.textContent = m.text;
-    if (isLatest) bubble.appendChild(editUserButton(m));
   } else {
     const v = m.versions[m.activeIndex];
     bubble.textContent = v?.text ?? "";
@@ -194,12 +193,7 @@ function renderMessage(m, isLatest) {
       bubble.appendChild(note);
     }
   }
-  const branchBtn = document.createElement("button");
-  branchBtn.className = "branch-btn";
-  branchBtn.textContent = "从这里开启新聊天";
-  branchBtn.onclick = () => openBranchDialog(m.id);
-  bubble.appendChild(branchBtn);
-  wrap.append(avatar, bubble);
+  wrap.append(avatar, bubble, moreButton(m, isLatest));
   return wrap;
 }
 
@@ -221,39 +215,97 @@ function versionControls(m) {
   next.disabled = m.activeIndex >= m.versions.length - 1;
   next.onclick = () => { setActiveVersion(m, m.activeIndex + 1); persist(); render(); };
 
-  const edit = document.createElement("button");
-  edit.textContent = "编辑";
-  edit.onclick = () => editAssistant(m);
-
   const regen = document.createElement("button");
-  regen.textContent = "重新回复";
+  regen.className = "regen-btn";
+  regen.textContent = "🔄";
+  regen.title = "重新回复";
   regen.onclick = () => regenerate(m);
 
-  box.append(prev, label, next, edit, regen);
+  box.append(prev, label, next, regen);
   return box;
 }
 
-function editUserButton(m) {
+function moreButton(m, isLatest) {
+  const wrap = document.createElement("div");
+  wrap.className = "more-wrap";
   const btn = document.createElement("button");
-  btn.className = "edit-btn";
-  btn.textContent = "编辑";
-  btn.onclick = () => {
+  btn.className = "more-btn";
+  btn.textContent = "⋯";
+  btn.onclick = (e) => { e.stopPropagation(); toggleMenu(wrap); };
+  const menu = document.createElement("div");
+  menu.className = "msg-menu hidden";
+  menu.append(
+    menuItem("编辑", isLatest, () => editMessage(m)),
+    menuItem("删除", true, () => deleteMessage(m)),
+    menuItem("从此处开始新聊天", true, () => openBranchDialog(m.id)),
+    menuItem("复制", true, () => copyMessage(m)),
+  );
+  wrap.append(btn, menu);
+  return wrap;
+}
+
+function menuItem(text, enabled, onClick) {
+  const b = document.createElement("button");
+  b.className = "menu-item";
+  b.textContent = text;
+  b.disabled = !enabled;
+  b.onclick = () => { closeMenus(); onClick(); };
+  return b;
+}
+
+function toggleMenu(wrap) {
+  const menu = wrap.querySelector(".msg-menu");
+  const willOpen = menu.classList.contains("hidden");
+  closeMenus();
+  if (willOpen) menu.classList.remove("hidden");
+}
+
+function closeMenus() {
+  document.querySelectorAll(".msg-menu").forEach((m) => m.classList.add("hidden"));
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-pane").forEach((p) => p.classList.toggle("hidden", p.id !== "pane-" + name));
+}
+
+function editMessage(m) {
+  if (m.role === "user") {
     const val = prompt("修改这条消息（直接覆盖）：", m.text);
     if (val == null || val === m.text) return;
     editUserMessage(m, val);
-    persist();
-    render();
-  };
-  return btn;
-}
-
-function editAssistant(m) {
-  const cur = m.versions[m.activeIndex];
-  const val = prompt("编辑这条 AI 回复（保存后作为新版本）：", cur?.text ?? "");
-  if (val == null || val === (cur?.text ?? "")) return;
-  addVersionToMessage(m, val, "edited");
+  } else {
+    const cur = m.versions[m.activeIndex];
+    const val = prompt("编辑这条 AI 回复（保存后作为新版本）：", cur?.text ?? "");
+    if (val == null || val === (cur?.text ?? "")) return;
+    addVersionToMessage(m, val, "edited");
+  }
   persist();
   render();
+}
+
+function deleteMessage(m) {
+  const t = activeTimeline();
+  if (!confirm("删除这条消息？")) return;
+  removeMessage(t, m.id);
+  persist();
+  render();
+}
+
+function copyMessage(m) {
+  const text = m.role === "user" ? m.text : (m.versions[m.activeIndex]?.text ?? "");
+  const done = () => toast("已复制");
+  const fail = () => toast("复制失败");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(fail);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch { fail(); }
+  ta.remove();
 }
 
 async function regenerate(m) {
@@ -286,16 +338,22 @@ async function generateReply(historyMessages, input) {
     timeline: { messages: historyMessages },
     currentInput: input ?? null,
   });
-  const r = await callChat({
-    baseUrl: state.settings.apiUrl,
-    apiKey: state.settings.apiKey,
-    model: state.settings.model,
-    messages,
-  });
-  for (const tc of r.toolCalls ?? []) {
-    if (tc?.function?.name === "update_status") applyToolCall(t.status, tc);
+  const MAX_ATTEMPTS = 5;
+  let content = "";
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const r = await callChat({
+      baseUrl: state.settings.apiUrl,
+      apiKey: state.settings.apiKey,
+      model: state.settings.model,
+      messages,
+    });
+    for (const tc of r.toolCalls ?? []) {
+      if (tc?.function?.name === "update_status") applyToolCall(t.status, tc);
+    }
+    content = r.content ?? "";
+    if (content.trim()) break;
   }
-  return r.content;
+  return content;
 }
 
 function setBusyUI(b) {
@@ -451,6 +509,10 @@ export function init() {
   });
   $("#btn-new-chat").onclick = openNewChatDialog;
   $("#nc-cancel").onclick = () => $("#new-chat-dialog").classList.add("hidden");
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.onclick = () => switchTab(tab.dataset.tab);
+  });
+  document.addEventListener("click", closeMenus);
   fillSettingsForm();
   render();
 }

@@ -16,6 +16,7 @@ body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, 
 .msg.user { flex-direction: row-reverse; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: #d8cfc8; flex: none; object-fit: cover; }
 .bubble { max-width: 76%; padding: 10px 12px; border-radius: 12px; background: var(--assistant-bubble); box-shadow: 0 1px 2px rgba(0,0,0,.06); word-break: break-word; white-space: pre-wrap; }
+.bubble.editing { width: 76%; }
 .msg.user .bubble { background: var(--user-bubble); }
 .composer { display: flex; gap: 8px; padding: 10px 12px; background: var(--panel); border-top: 1px solid var(--border); }
 .composer textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; min-height: 42px; max-height: 120px; }
@@ -83,4 +84,5 @@ input[type="range"] { padding: 0; border: none; accent-color: var(--accent); }
 @media (min-width: 768px) {
   .chat { padding: 24px 32px; }
   .bubble { max-width: 60%; }
+  .bubble.editing { width: 60%; }
 }

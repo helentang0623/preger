@@ -97,6 +97,12 @@ export function renameTimeline(timeline, name) {
   return timeline;
 }
 
+export function truncateAfter(timeline, messageId) {
+  const idx = timeline.messages.findIndex((m) => m.id === messageId);
+  if (idx >= 0) timeline.messages = timeline.messages.slice(0, idx + 1);
+  return timeline;
+}
+
 export function stageFromWeeks(weeks) {
   if (weeks == null || Number.isNaN(weeks)) return null;
   if (weeks <= 12) return "孕早期";

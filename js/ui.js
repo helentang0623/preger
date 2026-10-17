@@ -1,4 +1,4 @@
-import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks, removeMessage, renameTimeline } from "./state.js";
+import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks, removeMessage, renameTimeline, truncateAfter } from "./state.js";
 import { loadState, saveState, serialize, deserialize } from "./store.js";
 import { buildMessages, CONTINUE_INSTRUCTION } from "./prompt.js";
 import { fetchModels, callChat } from "./api.js";
@@ -196,7 +196,7 @@ function renderMessage(m, isLastUser, isLastAssistant) {
   avatar.className = "avatar";
   avatar.src = m.role === "user" ? (state.user.avatar ?? "") : (state.character.avatar ?? "");
   const bubble = document.createElement("div");
-  bubble.className = "bubble";
+  bubble.className = "bubble" + (m.id === editingId ? " editing" : "");
   if (m.id === editingId) {
     bubble.appendChild(renderEditor(m));
   } else if (m.role === "user") {
@@ -288,6 +288,7 @@ function moreButton(m, editable) {
   menu.append(
     menuItem("编辑", editable, () => editMessage(m)),
     menuItem("删除", true, () => deleteMessage(m)),
+    menuItem("倒回到这里", true, () => rewindHere(m)),
     menuItem("从此处开始新聊天", true, () => openBranchDialog(m.id)),
     menuItem("复制", true, () => copyMessage(m)),
   );
@@ -335,6 +336,17 @@ function deleteMessage(m) {
   const t = activeTimeline();
   if (!confirm("删除这条消息？")) return;
   removeMessage(t, m.id);
+  persist();
+  render();
+}
+
+function rewindHere(m) {
+  const t = activeTimeline();
+  const idx = t.messages.findIndex((x) => x.id === m.id);
+  const count = t.messages.length - 1 - idx;
+  if (count <= 0) { toast("这条之后没有消息了"); return; }
+  if (!confirm(`删除这条之后的 ${count} 条消息？`)) return;
+  truncateAfter(t, m.id);
   persist();
   render();
 }

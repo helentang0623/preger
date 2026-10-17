@@ -1,4 +1,4 @@
-import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks, removeMessage } from "./state.js";
+import { newTimeline, branchTimeline, appendUserMessage, appendAssistantMessage, addVersionToMessage, setActiveVersion, editUserMessage, stageFromWeeks, removeMessage, renameTimeline } from "./state.js";
 import { loadState, saveState, serialize, deserialize } from "./store.js";
 import { buildMessages, CONTINUE_INSTRUCTION } from "./prompt.js";
 import { fetchModels, callChat } from "./api.js";
@@ -68,6 +68,10 @@ function fillSettingsForm() {
   $("#api-key").value = state.settings.apiKey;
   setModelSelect();
   $("#world-text").value = state.world.text;
+  $("#temperature").value = state.settings.temperature;
+  $("#max-tokens").value = state.settings.maxTokens;
+  updateTempLabel();
+  updateLenLabel();
   $("#char-basic").value = state.character.basicInfo;
   $("#char-personality").value = state.character.personality;
   $("#char-opening").value = state.character.opening;
@@ -76,6 +80,9 @@ function fillSettingsForm() {
   $("#char-avatar-preview").src = state.character.avatar ?? "";
   $("#user-avatar-preview").src = state.user.avatar ?? "";
 }
+
+function updateTempLabel() { $("#temp-val").textContent = Number($("#temperature").value).toFixed(1); }
+function updateLenLabel() { $("#max-tokens-val").textContent = $("#max-tokens").value; }
 
 async function onFetchModels() {
   try {
@@ -99,6 +106,8 @@ function onSaveSettings() {
   state.settings.apiUrl = $("#api-url").value.trim();
   state.settings.apiKey = $("#api-key").value.trim();
   state.settings.model = $("#model-select").value;
+  state.settings.temperature = Number($("#temperature").value);
+  state.settings.maxTokens = Number($("#max-tokens").value);
   state.world.text = $("#world-text").value;
   state.character.basicInfo = $("#char-basic").value;
   state.character.personality = $("#char-personality").value;
@@ -168,11 +177,17 @@ function renderChat() {
     chat.innerHTML = `<div class="empty">${t ? "（空时间线，输入消息开始吧）" : "先在「设置」里填写人设，再从「时间线」开启新对话。"}</div>`;
     return;
   }
-  t.messages.forEach((m, idx) => chat.appendChild(renderMessage(m, idx === t.messages.length - 1)));
+  const lastUser = t.messages.filter((m) => m.role === "user").slice(-1)[0];
+  const lastAssistant = t.messages.filter((m) => m.role === "assistant").slice(-1)[0];
+  t.messages.forEach((m) => {
+    const isLastUser = m === lastUser;
+    const isLastAssistant = m === lastAssistant;
+    chat.appendChild(renderMessage(m, isLastUser, isLastAssistant));
+  });
   chat.scrollTop = chat.scrollHeight;
 }
 
-function renderMessage(m, isLatest) {
+function renderMessage(m, isLastUser, isLastAssistant) {
   const wrap = document.createElement("div");
   wrap.className = "msg " + m.role;
   const avatar = document.createElement("img");
@@ -185,7 +200,7 @@ function renderMessage(m, isLatest) {
   } else {
     const v = m.versions[m.activeIndex];
     bubble.textContent = v?.text ?? "";
-    if (isLatest) bubble.appendChild(versionControls(m));
+    if (isLastAssistant) bubble.appendChild(versionControls(m));
     else if (m.versions.length > 1) {
       const note = document.createElement("div");
       note.className = "version-count";
@@ -193,7 +208,8 @@ function renderMessage(m, isLatest) {
       bubble.appendChild(note);
     }
   }
-  wrap.append(avatar, bubble, moreButton(m, isLatest));
+  const editable = m.role === "user" ? isLastUser : isLastAssistant;
+  wrap.append(avatar, bubble, moreButton(m, editable));
   return wrap;
 }
 
@@ -225,7 +241,7 @@ function versionControls(m) {
   return box;
 }
 
-function moreButton(m, isLatest) {
+function moreButton(m, editable) {
   const wrap = document.createElement("div");
   wrap.className = "more-wrap";
   const btn = document.createElement("button");
@@ -235,7 +251,7 @@ function moreButton(m, isLatest) {
   const menu = document.createElement("div");
   menu.className = "msg-menu hidden";
   menu.append(
-    menuItem("编辑", isLatest, () => editMessage(m)),
+    menuItem("编辑", editable, () => editMessage(m)),
     menuItem("删除", true, () => deleteMessage(m)),
     menuItem("从此处开始新聊天", true, () => openBranchDialog(m.id)),
     menuItem("复制", true, () => copyMessage(m)),
@@ -346,6 +362,8 @@ async function generateReply(historyMessages, input) {
       apiKey: state.settings.apiKey,
       model: state.settings.model,
       messages,
+      temperature: state.settings.temperature,
+      maxTokens: state.settings.maxTokens,
     });
     for (const tc of r.toolCalls ?? []) {
       if (tc?.function?.name === "update_status") applyToolCall(t.status, tc);
@@ -428,6 +446,16 @@ function renderTimelineList() {
     const span = document.createElement("span");
     span.textContent = t.name;
     span.onclick = () => { state.activeTimelineId = t.id; persist(); render(); closePanels(); };
+    const rename = document.createElement("button");
+    rename.textContent = "✎";
+    rename.title = "重命名";
+    rename.onclick = () => {
+      const val = prompt("重命名时间线：", t.name);
+      if (val == null || !val.trim() || val.trim() === t.name) return;
+      renameTimeline(t, val.trim());
+      persist();
+      render();
+    };
     const del = document.createElement("button");
     del.textContent = "✕";
     del.onclick = () => {
@@ -437,7 +465,7 @@ function renderTimelineList() {
       persist();
       render();
     };
-    li.append(span, del);
+    li.append(span, rename, del);
     ul.appendChild(li);
   });
 }
@@ -446,6 +474,7 @@ function openNewChatDialog() {
   $("#new-chat-title").textContent = "开启新对话";
   $("#nc-name").value = "";
   $("#nc-weeks").value = "";
+  $("#nc-weeks-row").classList.remove("hidden");
   $("#nc-confirm").onclick = confirmNewChat;
   $("#new-chat-dialog").classList.remove("hidden");
 }
@@ -456,7 +485,7 @@ function openBranchDialog(messageId) {
   const src = { status: t.status, messages: t.messages.slice(0, idx + 1) };
   $("#new-chat-title").textContent = "从这里开启新聊天";
   $("#nc-name").value = t.name + " 分支";
-  $("#nc-weeks").value = t.status.weeks ?? "";
+  $("#nc-weeks-row").classList.add("hidden");
   $("#nc-confirm").onclick = () => confirmBranch(src);
   $("#new-chat-dialog").classList.remove("hidden");
 }
@@ -476,10 +505,7 @@ function confirmNewChat() {
 
 function confirmBranch(src) {
   const name = $("#nc-name").value.trim() || `时间线 ${state.timelines.length + 1}`;
-  const raw = $("#nc-weeks").value;
-  const weeks = raw === "" ? src.status.weeks : parseInt(raw, 10);
-  if (Number.isNaN(weeks)) { toast("请填写初始孕周"); return; }
-  const t = branchTimeline(name, weeks, src);
+  const t = branchTimeline(name, src);
   state.timelines.push(t);
   state.activeTimelineId = t.id;
   $("#new-chat-dialog").classList.add("hidden");
@@ -512,6 +538,8 @@ export function init() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.onclick = () => switchTab(tab.dataset.tab);
   });
+  $("#temperature").addEventListener("input", updateTempLabel);
+  $("#max-tokens").addEventListener("input", updateLenLabel);
   document.addEventListener("click", closeMenus);
   fillSettingsForm();
   render();

@@ -20,7 +20,7 @@ export function defaultStatus() {
 
 export function defaultState() {
   return {
-    settings: { apiUrl: "", apiKey: "", model: "" },
+    settings: { apiUrl: "", apiKey: "", model: "", temperature: 1.0, maxTokens: 500 },
     character: { avatar: null, basicInfo: "", personality: "", opening: "" },
     user: { avatar: null, basicInfo: "", personality: "" },
     world: { text: "" },
@@ -46,14 +46,14 @@ export function newTimeline(name, initialWeeks, opening) {
   return timeline;
 }
 
-export function branchTimeline(name, initialWeeks, source) {
+export function branchTimeline(name, source) {
   const timeline = {
     id: createId(),
     name,
     status: structuredClone(source.status),
     messages: structuredClone(source.messages),
   };
-  timeline.status.weeks = initialWeeks ?? timeline.status.weeks;
+  timeline.status.weeks = null; // 孕周由 AI 根据之前的对话判断
   return timeline;
 }
 
@@ -89,6 +89,11 @@ export function editUserMessage(message, text) {
 
 export function removeMessage(timeline, messageId) {
   timeline.messages = timeline.messages.filter((m) => m.id !== messageId);
+  return timeline;
+}
+
+export function renameTimeline(timeline, name) {
+  timeline.name = name;
   return timeline;
 }
 

@@ -17,8 +17,11 @@ export function parseModels(data) {
   return list.map((m) => m.id).filter((id) => typeof id === "string" && id);
 }
 
-export function buildChatRequest({ model, messages }) {
-  return { model, messages, tools: [UPDATE_STATUS_TOOL], tool_choice: "auto" };
+export function buildChatRequest({ model, messages, temperature, maxTokens }) {
+  const req = { model, messages, tools: [UPDATE_STATUS_TOOL], tool_choice: "auto" };
+  if (temperature != null && !Number.isNaN(Number(temperature))) req.temperature = Number(temperature);
+  if (maxTokens != null && Number(maxTokens) > 0) req.max_tokens = Math.round(Number(maxTokens));
+  return req;
 }
 
 export function parseAssistantMessage(resp) {
@@ -47,11 +50,11 @@ export async function fetchModels({ baseUrl, apiKey, fetchImpl }) {
   return parseModels(data);
 }
 
-export async function callChat({ baseUrl, apiKey, model, messages, fetchImpl }) {
+export async function callChat({ baseUrl, apiKey, model, messages, temperature, maxTokens, fetchImpl }) {
   const data = await requestJson(fetchImpl, chatUrl(baseUrl), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + (apiKey ?? "") },
-    body: JSON.stringify(buildChatRequest({ model, messages })),
+    body: JSON.stringify(buildChatRequest({ model, messages, temperature, maxTokens })),
   });
   return parseAssistantMessage(data);
 }

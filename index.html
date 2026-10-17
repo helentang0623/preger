@@ -57,7 +57,14 @@
       </section>
       <section id="pane-world" class="tab-pane hidden">
         <h3>世界观（共享）</h3>
-        <textarea id="world-text" rows="6"></textarea>
+        <textarea id="world-text" rows="4"></textarea>
+        <h3>生成参数</h3>
+        <label>温度 <span class="range-val" id="temp-val">1.0</span>
+          <input id="temperature" type="range" min="0" max="2" step="0.1" />
+        </label>
+        <label>回复长度 <span class="range-val" id="max-tokens-val">500</span>
+          <input id="max-tokens" type="range" min="100" max="2000" step="50" />
+        </label>
       </section>
       <section id="pane-data" class="tab-pane hidden">
         <h3>数据</h3>
@@ -90,7 +97,7 @@
     <div class="modal-box">
       <h2 id="new-chat-title">开启新对话</h2>
       <label>时间线名称<input id="nc-name" placeholder="（可留空自动命名）" /></label>
-      <label>初始孕周<input id="nc-weeks" type="number" min="1" placeholder="如 32" /></label>
+      <div id="nc-weeks-row"><label>初始孕周<input id="nc-weeks" type="number" min="1" placeholder="如 32" /></label></div>
       <div class="row">
         <button id="nc-cancel">取消</button>
         <button id="nc-confirm" class="primary">创建</button>

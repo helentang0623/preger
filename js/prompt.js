@@ -2,7 +2,7 @@ import { messagesForPrompt, stageFromWeeks } from "./state.js";
 
 export const CONTINUE_INSTRUCTION = "（继续推进剧情）";
 
-export function buildSystemPrompt({ character, user, world, status }) {
+export function buildSystemPrompt({ character, user, world, status, maxTokens }) {
   const stage = stageFromWeeks(status.weeks);
   const weekText = status.weeks != null ? `第 ${status.weeks} 周` : "未设定";
   const laborDetail = status.laborStatus === "分娩中"
@@ -16,6 +16,16 @@ export function buildSystemPrompt({ character, user, world, status }) {
     `胎儿状态：${status.fetalStatus ?? "未设定"}`,
     `产程进度：${status.laborStatus ?? "待分娩"}${laborDetail}`,
   ].join("\n");
+
+  const rules = [
+    "1. 剧情驱动：主动推动故事发展，推进要自然、缓慢。",
+    "2. 状态更新：仅当剧情有实质推进时才调用 update_status 更新概览；不要每轮都更新；剧情慢则更新慢。",
+    "3. 首次补全：概览里凡是显示「未设定」的指标（孕周、身体状态、体力/精力、情绪状态、胎儿状态、产程进度），请在本次回复中调用 update_status，结合世界观、角色人设与当前剧情把它们补全。",
+    "4. 指标描述要简洁（短语/短句）。",
+  ];
+  if (maxTokens != null && Number(maxTokens) > 0) {
+    rules.push(`5. 回复长度：请把每次回复控制在约 ${Math.round(Number(maxTokens))} 字以内，并在完整的句子或段落处自然收尾，不要写到一半被截断。`);
+  }
 
   return [
     "你正在进行一段剧情向的孕期角色扮演。请始终沉浸扮演角色，自然、缓慢地推进剧情，不要跳出角色、不要逐句应答。",
@@ -39,15 +49,16 @@ export function buildSystemPrompt({ character, user, world, status }) {
     statusLines,
     "",
     "【规则】",
-    "1. 剧情驱动：主动推动故事发展，推进要自然、缓慢。",
-    "2. 状态更新：仅当剧情有实质推进时才调用 update_status 更新概览；不要每轮都更新；剧情慢则更新慢。",
-    "3. 指标描述要简洁（短语/短句）。",
+    ...rules,
   ].join("\n");
 }
 
-export function buildMessages({ character, user, world, status, timeline, currentInput }) {
-  const messages = [{ role: "system", content: buildSystemPrompt({ character, user, world, status }) }];
-  messages.push(...messagesForPrompt(timeline));
+export const HISTORY_LIMIT = 30;
+
+export function buildMessages({ character, user, world, status, timeline, currentInput, maxTokens }) {
+  const messages = [{ role: "system", content: buildSystemPrompt({ character, user, world, status, maxTokens }) }];
+  const history = messagesForPrompt(timeline);
+  messages.push(...history.slice(-HISTORY_LIMIT));
   if (currentInput != null) messages.push({ role: "user", content: currentInput });
   return messages;
 }

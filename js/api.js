@@ -17,10 +17,12 @@ export function parseModels(data) {
   return list.map((m) => m.id).filter((id) => typeof id === "string" && id);
 }
 
+export const MAX_TOKENS_BUFFER = 1.5;
+
 export function buildChatRequest({ model, messages, temperature, maxTokens }) {
   const req = { model, messages, tools: [UPDATE_STATUS_TOOL], tool_choice: "auto" };
   if (temperature != null && !Number.isNaN(Number(temperature))) req.temperature = Number(temperature);
-  if (maxTokens != null && Number(maxTokens) > 0) req.max_tokens = Math.round(Number(maxTokens));
+  if (maxTokens != null && Number(maxTokens) > 0) req.max_tokens = Math.round(Number(maxTokens) * MAX_TOKENS_BUFFER);
   return req;
 }
 

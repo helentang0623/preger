@@ -335,6 +335,7 @@ async function regenerate(m) {
   try {
     const reply = await generateReply(history, input);
     addVersionToMessage(m, reply, "regenerated");
+    if (!reply.trim()) toast("多次尝试仍未收到回复，可能是对话过长超出模型上下文");
     persist();
     render();
   } catch (e) {
@@ -353,9 +354,9 @@ async function generateReply(historyMessages, input) {
     status: t.status,
     timeline: { messages: historyMessages },
     currentInput: input ?? null,
+    maxTokens: state.settings.maxTokens,
   });
   const MAX_ATTEMPTS = 5;
-  let content = "";
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const r = await callChat({
       baseUrl: state.settings.apiUrl,
@@ -368,10 +369,17 @@ async function generateReply(historyMessages, input) {
     for (const tc of r.toolCalls ?? []) {
       if (tc?.function?.name === "update_status") applyToolCall(t.status, tc);
     }
-    content = r.content ?? "";
-    if (content.trim()) break;
+    const content = r.content ?? "";
+    if (content.trim()) return content;
+    if (r.toolCalls?.length) {
+      // 模型先调用工具、还没写正文：把工具结果回传，继续生成正文
+      messages.push({ role: "assistant", content: "", tool_calls: r.toolCalls });
+      for (const tc of r.toolCalls) {
+        messages.push({ role: "tool", tool_call_id: tc.id, content: "状态已更新" });
+      }
+    }
   }
-  return content;
+  return "";
 }
 
 function setBusyUI(b) {
@@ -394,6 +402,7 @@ async function onSend() {
   try {
     const reply = await generateReply(t.messages, text ? null : CONTINUE_INSTRUCTION);
     appendAssistantMessage(t, reply);
+    if (!reply.trim()) toast("多次尝试仍未收到回复，可能是对话过长超出模型上下文，可尝试「从这里开启新聊天」继续");
     persist();
     render();
   } catch (e) {
